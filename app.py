@@ -2,6 +2,7 @@ import streamlit as st
 import psycopg2 as pg
 from datetime import date
 import pandas as pd
+import os
 from io import BytesIO
 from utils import compute_aging_bucket
 
@@ -10,18 +11,19 @@ def main():
     # Database connection
     try:
         connection = pg.connect(
-        host='localhost',
-        database='postgres',
-        user='postgres',
-        password='0218'
-        )
+        host=os.environ['DB_HOST'],
+        database=os.environ['DB_NAME'],
+        user=os.environ['DB_USER'],
+        password=os.environ['DB_PASS'],
+        port=os.environ.get('DB_PORT', 5432)
+)
         cursor = connection.cursor()
         db_connected = True
     except Exception as e:
         st.warning("⚠️ Could not connect to Postgres. Running in demo mode with sample data.")
         db_connected = False
 
-    cursor = connection.cursor()
+    
     # Sidebar filters
     st.sidebar.title('Invoice Dashboard')
 
@@ -68,13 +70,9 @@ def main():
     invoice_df['invoice_amount'] = invoice_df['invoice_amount'].astype(int)
     invoice_df['payment_amount'] = invoice_df['payment_amount'].astype(int)
     invoice_df['outstanding'] = invoice_df['outstanding'].astype(int)
-
     invoice_df['invoice_date'] = pd.to_datetime(invoice_df['invoice_date'])
     invoice_df['due_date'] = pd.to_datetime(invoice_df['due_date'])
 
-    invoice_df['invoice_amount'] = invoice_df['invoice_amount'].astype(int)
-    invoice_df['payment_amount'] = invoice_df['payment_amount'].astype(int)
-    invoice_df['outstanding'] = invoice_df['outstanding'].astype(int)
 
     # Apply filters
     if customer != 'All':
@@ -248,3 +246,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
