@@ -8,12 +8,19 @@ from utils import compute_aging_bucket
 
 def main():
     # Database connection
-    connection = pg.connect(
+    try:
+        connection = pg.connect(
         host='localhost',
         database='postgres',
         user='postgres',
         password='0218'
-    )
+        )
+        cursor = connection.cursor()
+        db_connected = True
+    except Exception as e:
+        st.warning("⚠️ Could not connect to Postgres. Running in demo mode with sample data.")
+        db_connected = False
+
     cursor = connection.cursor()
     # Sidebar filters
     st.sidebar.title('Invoice Dashboard')
@@ -45,7 +52,18 @@ def main():
         GROUP BY i.invoice_id, c.name, i.amount, i.invoice_date, i.due_date
         ORDER BY i.invoice_id;
     """
-    invoice_df = pd.read_sql(query, connection)
+    if db_connected:
+        invoice_df = pd.read_sql(query, connection)
+    else:
+        invoice_df = pd.DataFrame({
+            "customer_name": ["Alice", "Bob"],
+            "invoice_id": [1, 2],
+            "invoice_amount": [1000, 500],
+            "payment_amount": [200, 500],
+            "outstanding": [800, 0],
+            "invoice_date": pd.to_datetime(["2025-01-01", "2025-02-01"]),
+            "due_date": pd.to_datetime(["2025-01-15", "2025-02-15"])
+        })
 
     invoice_df['invoice_amount'] = invoice_df['invoice_amount'].astype(int)
     invoice_df['payment_amount'] = invoice_df['payment_amount'].astype(int)
