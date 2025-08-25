@@ -27,14 +27,25 @@ def main():
     # Sidebar filters
     st.sidebar.title('Invoice Dashboard')
 
-    cursor.execute('SELECT name FROM customers ORDER BY name')
-    customers_list = [row[0] for row in cursor.fetchall()]
+    customers_list = []
+    if db_connected:
+        cursor = connection.cursor()
+        cursor.execute('SELECT name FROM customers ORDER BY name')
+        customers_list = [row[0] for row in cursor.fetchall()]
+    
     customer = st.sidebar.selectbox('Customer', ['All'] + customers_list)
 
-    cursor.execute('SELECT min(invoice_date), max(invoice_date) FROM invoices')
-    start_date_db, end_date_db = cursor.fetchone()
+
+    if db_connected:
+        cursor.execute('SELECT min(invoice_date), max(invoice_date) FROM invoices')
+        start_date_db, end_date_db = cursor.fetchone()
+    else:
+        start_date_db = pd.to_datetime("2025-01-01")
+        end_date_db = pd.to_datetime("2025-12-31")
+
     start_date = st.sidebar.date_input('Start date', value=start_date_db, min_value=start_date_db, max_value=end_date_db)
     end_date = st.sidebar.date_input('End date', value=end_date_db, min_value=start_date_db, max_value=end_date_db)
+
 
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
@@ -185,13 +196,16 @@ def main():
                 elif payment_amount > outstanding_amt:
                     st.error("Cannot exceed outstanding")
                 else:
-                    cursor.execute(
-                        "INSERT INTO payments (invoice_id, payment_date, amount) VALUES (%s, %s, %s)",
-                        (selected_invoice, payment_date, payment_amount)
-                    )
-                    connection.commit()
-                    st.success(f"✅ Payment of {payment_amount:.2f} recorded for Invoice {selected_invoice}.")
-                    st.rerun()
+                    if db_connected:
+                        cursor.execute(
+                            "INSERT INTO payments (invoice_id, payment_date, amount) VALUES (%s, %s, %s)",
+                            (selected_invoice, payment_date, payment_amount)
+                        )
+                        connection.commit()
+                        st.success(f"✅ Payment of {payment_amount:.2f} recorded for Invoice {selected_invoice}.")
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Cannot record payment: Database not connected.")
 
         payment_df = pd.read_sql(
             "SELECT payment_id, payment_date, amount FROM payments WHERE invoice_id=%s ORDER BY payment_date",
@@ -219,7 +233,19 @@ def main():
         GROUP BY i.invoice_id, c.name, i.amount, i.invoice_date, i.due_date
         ORDER BY i.invoice_id;
     """
-    raw_df = pd.read_sql(query, connection)
+    if db_connected:
+        raw_df = pd.read_sql(query, connection)
+    else:
+        raw_df = pd.DataFrame({
+            "customer_name": ["Alice", "Bob"],
+            "invoice_id": [1, 2],
+            "invoice_amount": [1000, 500],
+            "payment_amount": [200, 500],
+            "outstanding": [800, 0],
+            "invoice_date": pd.to_datetime(["2025-01-01", "2025-02-01"]),
+            "due_date": pd.to_datetime(["2025-01-15", "2025-02-15"])
+        })
+
     invoice_df = raw_df.copy()
 
     raw_df['due_date_only'] = raw_df['due_date'].dt.date
@@ -246,4 +272,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
